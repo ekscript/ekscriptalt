@@ -40,10 +40,10 @@ pub const Compiler = struct {
     options: CompilerOptions,
 
     // list of all errors
-    errors: std.ArrayList(Error),
+    errors: *std.ArrayList(Error),
 
     // list of all warnings
-    warnings: std.ArrayList(Error),
+    warnings: *std.ArrayList(Error),
 
     // the ast produced from parser, resolver and optimizer
     tree: Tree = undefined,
@@ -53,13 +53,15 @@ pub const Compiler = struct {
     pub fn init(options: CompilerOptions) Self {
         var allocator = options.allocator;
 
-        var errors = Errors.init(allocator);
-        var warnings = Errors.init(allocator);
+        var errors = allocator.create(Errors) catch unreachable;
+        var warnings = allocator.create(Errors) catch unreachable;
+        errors.* = Errors.init(allocator);
+        warnings.* = Errors.init(allocator);
 
         const parser = Parser.init(
             allocator,
-            &errors,
-            &warnings,
+            errors,
+            warnings,
             options,
         );
 
@@ -87,7 +89,10 @@ pub const Compiler = struct {
     /// destructor
     pub fn deinit(self: *Compiler) void {
         self.errors.deinit();
+        self.allocator.destroy(self.errors);
         self.warnings.deinit();
+        self.allocator.destroy(self.warnings);
+
         self.parser.deinit();
     }
 };
@@ -95,7 +100,9 @@ pub const Compiler = struct {
 test "basic compilation and decompilation" {
     var sourceCodes = SourceCodes.init(test_allocator);
     defer sourceCodes.deinit();
-    try sourceCodes.put("src/main.ek", "1 + 1;");
+    try sourceCodes.put("src/main.ek",
+      "`Hel\\nlo`"
+    );
 
     const options = CompilerOptions{
         .allocator = test_allocator,

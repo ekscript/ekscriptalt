@@ -16,11 +16,18 @@ fn getFileContent(map: main.SourceCodes, file: []const u8) []const u8 {
     return map.get(file) orelse "1 + 1;";
 }
 
+fn println(comptime fmt: []const u8, args: anytype) void {
+    std.debug.print("\n\x1b[34m parser.zig > \x1b[0m" ++ fmt ++ "\n", args);
+}
+fn print(comptime fmt: []const u8, args: anytype) void {
+    std.debug.print("\x1b[34m parser.zig > \x1b[0m" ++ fmt ++ "\n", args);
+}
+
 pub const Parser = struct {
     const Self = @This();
 
     allocator: *Allocator = heap.page_allocator,
-    parser_arena: heap.ArenaAllocator,
+    parser_arena: std.heap.ArenaAllocator,
 
     options: main.CompilerOptions,
     source_code: []const u8,
@@ -62,13 +69,21 @@ pub const Parser = struct {
             .warnings = warnings,
             .tokens = tokens,
             .lexer = lexInstance,
-            .parser_arena = heap.ArenaAllocator.init(allocator),
+            .parser_arena = std.heap.ArenaAllocator.init(allocator),
             .cursor = tok,
         };
     }
 
     pub fn parse(self: *@This()) !ast.Tree {
         self.tokens = self.lexer.lex();
+        for (self.tokens.items) |tok| {
+            println("{s}", .{tok.toString(&self.parser_arena.allocator)});
+        }
+        if (self.errors.items.len > 0) {
+          for (self.errors.items) |err| {
+            println("Error: {s}", .{err.errorMessage});
+          }
+        }
         return ast.Tree{};
     }
 
@@ -109,5 +124,6 @@ pub const Parser = struct {
         self.tokens.*.deinit();
         self.allocator.destroy(self.tokens);
         self.lexer.deinit();
+        self.parser_arena.deinit();
     }
 };

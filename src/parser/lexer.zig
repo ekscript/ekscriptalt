@@ -6,10 +6,10 @@ const token = @import("./token.zig");
 
 // print
 fn println(comptime fmt: []const u8, args: anytype) void {
-    std.debug.print("\n" ++ fmt ++ "\n", args);
+    std.debug.print("\n\x1b[34m lexer.zig > \x1b[0m" ++ fmt ++ "\n", args);
 }
 fn print(comptime fmt: []const u8, args: anytype) void {
-    std.debug.print(fmt ++ "\n", args);
+    std.debug.print("\x1b[34m lexer.zig > \x1b[0m" ++ fmt ++ "\n", args);
 }
 
 // std imports
@@ -79,10 +79,14 @@ pub const Lexer = struct {
             self.start = self.cursor;
             self.scanToken();
         }
-        self.tokens.*.append(Token{}) catch unreachable;
+        self.tokens.*.append(Token{
+            .start = self.code.len,
+            .end = self.code.len,
+        }) catch unreachable;
         return self.tokens;
     }
 
+    /// heart of the scanner. scans individual tokens
     fn scanToken(self: *Self) void {
         const c = self.advance();
         const TT = TokenType;
@@ -195,8 +199,8 @@ pub const Lexer = struct {
             '<' => switch (self.lookAhead()) {
                 '=' => self.addTokenAdvance(TT.LessThanEquals, 1),
                 '<' => switch (self.lookSuperAhead()) {
-                    '=' => self.addTokenAdvance(TT.LeftShiftArithmetic, 2),
-                    else => self.addTokenAdvance(TT.LeftShiftArithmeticAssign, 1),
+                    '=' => self.addTokenAdvance(TT.LeftShiftArithmeticAssign, 2),
+                    else => self.addTokenAdvance(TT.LeftShiftArithmetic, 1),
                 },
                 else => self.addToken(TT.LessThan),
             },
@@ -227,10 +231,18 @@ pub const Lexer = struct {
     }
 
     /// string lexing
-    /// TODO: add support for escape literals
+    /// TODO: add support for advance escape literals
     fn string(self: *Self, c: u8) void {
-        while (self.lookAhead() != c and !self.end()) {
+        var currentChar: u8 = self.lookAhead();
+        while (!self.end()) : ({
             _ = self.advance();
+            currentChar = self.lookAhead();
+        }) {
+            if (currentChar == c) {
+                break;
+            } else if (currentChar == '\\') {
+              _ = self.advance();
+            }
         }
 
         if (self.end()) {
@@ -240,14 +252,18 @@ pub const Lexer = struct {
         _ = self.advance();
 
         // trim the surrounding quotes
-        self.tokens.append(.{ .tok_type = TokenType.String, .start = self.start + 1, .end = self.cursor - 1 }) catch unreachable;
+        self.tokens.append(.{
+            .tok_type = TokenType.String,
+            .start = self.start + 1,
+            .end = self.cursor - 1,
+        }) catch unreachable;
     }
 
-    /// TODO
+    /// TODO:
     /// process identifier and keywords
     fn identifier(self: *Self) void {
         var ahead = self.lookAhead();
-        while (std.ascii.isAlNum(ahead) or ahead == '_'): (ahead = self.lookAhead()) {
+        while (std.ascii.isAlNum(ahead) or ahead == '_') : (ahead = self.lookAhead()) {
             _ = self.advance();
         }
         const text = self.code[self.start..self.cursor];
@@ -256,15 +272,41 @@ pub const Lexer = struct {
     }
 
     /// template literals
-    /// TODO: add support for escape sequences and tokens
-    fn templateLiteral(self: *Self) void {}
+    /// TODO: add support for escape sequences.
+    /// TODO: use this again during parsing to get the tokens back
+    fn templateLiteral(self: *Self) void {
+        var currentChar: u8 = self.lookAhead();
+        while (!self.end()) : ({
+            _ = self.advance();
+            currentChar = self.lookAhead();
+        }) {
+            if (currentChar == '`') {
+                break;
+            } else if (currentChar == '\\') {
+              _ = self.advance();
+            }
+        }
+
+        if (self.end()) {
+            self.addError("Unterminated string");
+            return;
+        }
+        _ = self.advance();
+
+        // trim the surrounding quotes
+        self.tokens.append(.{
+            .tok_type = TokenType.TemplateLiteral,
+            .start = self.start + 1,
+            .end = self.cursor - 1,
+        }) catch unreachable;
+    }
 
     /// number lexing
     fn number(self: *Self) void {
         while (std.ascii.isDigit(self.lookAhead()))
             _ = self.advance();
 
-        if (self.lookAhead() == '.' and std.ascii.isDigit(self.lookAhead())) {
+        if (self.lookAhead() == '.' and std.ascii.isDigit(self.lookSuperAhead())) {
             _ = self.advance();
             while (std.ascii.isDigit(self.lookAhead())) {
                 _ = self.advance();
@@ -276,20 +318,20 @@ pub const Lexer = struct {
 
     /// look one character ahead
     fn lookAhead(self: *Self) u8 {
-        return if (self.cursor + 1 >= self.code.len) 0 else self.code[self.cursor + 1];
+        return if (self.cursor >= self.code.len) 0 else self.code[self.cursor];
     }
 
     /// look two characters ahead
     fn lookSuperAhead(self: *Self) u8 {
+        if (self.cursor >= self.code.len) return 0;
         if (self.cursor + 1 >= self.code.len) return 0;
-        if (self.cursor + 2 >= self.code.len) return 0;
-        return self.code[self.cursor + 2];
+        return self.code[self.cursor + 1];
     }
 
     fn lookSuperDuperAhead(self: *Self) u8 {
         if (self.lookSuperAhead() != 0) {
-            if (self.cursor + 3 >= self.code.len) return 0;
-            return self.code[self.cursor + 3];
+            if (self.cursor + 2 >= self.code.len) return 0;
+            return self.code[self.cursor + 2];
         }
         return 0;
     }
@@ -303,16 +345,16 @@ pub const Lexer = struct {
 
     fn advance(self: *Self) u8 {
         self.*.cursor += 1;
-        return self.*.code[self.cursor];
+        return self.*.code[self.cursor - 1];
     }
 
     fn end(self: *Self) bool {
-        return self.*.cursor >= self.code.len - 1;
+        return self.*.cursor >= self.code.len;
     }
 
     pub fn addTokenAdvance(self: *Self, tok_type: TokenType, steps: usize) void {
-        self.addToken(tok_type);
         self.*.cursor += steps;
+        self.addToken(tok_type);
     }
 
     pub fn addToken(self: *Self, tok_type: TokenType) void {
@@ -348,7 +390,7 @@ pub const Lexer = struct {
             },
         ) catch unreachable;
 
-        self.errors.append(.{
+        self.errors.append(main.Error{
             .line = line,
             .pos = self.start,
             .errorMessage = errorMessage,
