@@ -3,27 +3,27 @@ const Tree = @import("./ast.zig").Tree;
 const Parser = @import("./parser/parser.zig").Parser;
 
 // All std imports
-const testing = std.testing;
 const Allocator = std.mem.Allocator;
+const test_allocator = std.testing.allocator;
 const print = std.debug.print;
 
 pub const CompilerBackend = enum { Zig, Js, Dart };
 
-pub const SourceCodes = struct { filePath: []u8, fileContent: []u8 };
+pub const SourceCodes = std.StringHashMap([]const u8);
 
 pub const CompilerOptions = struct {
     backend: CompilerBackend = CompilerBackend.Zig,
-    entry: []const u8 = "src/index.ek",
+    entry: []const u8 = "src/main.ek",
     noOutput: bool = false,
     allocator: *Allocator = std.heap.page_allocator,
-    sourceCodes: ?*std.ArrayList([]u8) = null,
+    sourceCodes: SourceCodes = SourceCodes.init(std.heap.page_allocator),
 };
 
 pub const CompilerErrorType = enum { RuntimeError, CompileError };
 
 pub const Error = struct {
-    line: i32,
-    pos: i32,
+    line: usize,
+    pos: usize,
     errorMessage: []const u8,
     errorType: CompilerErrorType,
 };
@@ -31,6 +31,8 @@ pub const Error = struct {
 pub const Errors = std.ArrayList(Error);
 
 pub const Compiler = struct {
+    const Self = @This();
+
     // allocator used in the compiler
     allocator: *Allocator,
 
@@ -48,15 +50,20 @@ pub const Compiler = struct {
 
     parser: Parser = undefined,
 
-    pub fn init(options: CompilerOptions) Compiler {
+    pub fn init(options: CompilerOptions) Self {
         var allocator = options.allocator;
 
         var errors = Errors.init(allocator);
         var warnings = Errors.init(allocator);
 
-        const parser = Parser.init(allocator, options.entry, &errors, &warnings);
+        const parser = Parser.init(
+            allocator,
+            &errors,
+            &warnings,
+            options,
+        );
 
-        const compiler = Compiler {
+        const compiler = Self{
             .allocator = allocator,
             .options = options,
             .parser = parser,
@@ -66,7 +73,7 @@ pub const Compiler = struct {
         return compiler;
     }
 
-    pub fn parse(self: *Compiler) !*Compiler {
+    pub fn parse(self: *Self) !*Self {
         const entry = self.options.entry;
         self.tree = try self.parser.parse();
         return self;
@@ -75,27 +82,28 @@ pub const Compiler = struct {
     /// print errors and warnings after formatting them
     /// with [std.debug.TTY](https://ziglang.org/documentation/master/std/#std;debug.TTY.Color)
     pub fn printErrorsWarnings(self: *Compiler) void {
-        std.debug.print("Num Errors: {d}, Warnings: {d}---\n\n", .{
-            self.errors.items.len,
-            self.warnings.items.len,
-        });
     }
 
     /// destructor
     pub fn deinit(self: *Compiler) void {
-      self.errors.deinit();
-      self.warnings.deinit();
-      self.parser.deinit();
+        self.errors.deinit();
+        self.warnings.deinit();
+        self.parser.deinit();
     }
 };
 
 test "basic compilation and decompilation" {
-    const options = CompilerOptions{ .allocator = std.testing.allocator };
+    var sourceCodes = SourceCodes.init(test_allocator);
+    defer sourceCodes.deinit();
+    try sourceCodes.put("src/main.ek", "1 + 1;");
+
+    const options = CompilerOptions{
+        .allocator = test_allocator,
+        .sourceCodes = sourceCodes,
+    };
 
     var compiler = try Compiler.init(options).parse();
 
     compiler.printErrorsWarnings();
-
     compiler.deinit();
 }
-
