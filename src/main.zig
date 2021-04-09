@@ -1,11 +1,13 @@
 const std = @import("std");
-const Tree = @import("./ast.zig").Tree;
 const Parser = @import("./parser/parser.zig").Parser;
 
 // All std imports
 const Allocator = std.mem.Allocator;
 const test_allocator = std.testing.allocator;
 const print = std.debug.print;
+
+// All imports
+const TopLevel = @import("./parser/nodes.zig").TopLevel;
 
 pub const CompilerBackend = enum { Zig, Js, Dart };
 
@@ -46,7 +48,7 @@ pub const Compiler = struct {
     warnings: *std.ArrayList(Error),
 
     // the ast produced from parser, resolver and optimizer
-    tree: Tree = undefined,
+    tree: TopLevel,
 
     parser: Parser = undefined,
 
@@ -65,19 +67,20 @@ pub const Compiler = struct {
             options,
         );
 
-        const compiler = Self{
+        const compiler = Self {
             .allocator = allocator,
             .options = options,
             .parser = parser,
             .errors = errors,
             .warnings = warnings,
+            .tree = undefined,
         };
         return compiler;
     }
 
-    pub fn parse(self: *Self) !*Self {
+    pub fn parse(self: *Self) *Self {
         const entry = self.options.entry;
-        self.tree = try self.parser.parse();
+        self.tree = self.parser.parse();
         return self;
     }
 
@@ -109,8 +112,8 @@ test "basic compilation and decompilation" {
         .sourceCodes = sourceCodes,
     };
 
-    var compiler = try Compiler.init(options).parse();
+    var compiler = Compiler.init(options).parse();
+    defer compiler.deinit();
 
     compiler.printErrorsWarnings();
-    compiler.deinit();
 }
