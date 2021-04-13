@@ -219,6 +219,8 @@ module.exports = function defineGrammar(dialect) {
         previous
       ),
 
+      import_require_clause: $ => seq($.identifier, '=', 'require', '(', $.string, ')'),
+
       import_statement: $ => seq(
         'import',
         optional(choice('type', 'typeof')),
@@ -350,12 +352,10 @@ module.exports = function defineGrammar(dialect) {
         choice($._type, $.template_string)
       )),
 
-      class_heritage: $ => choice(
+      class_heritage: $ => seq(
         seq($.extends_clause, optional($.implements_clause)),
         $.implements_clause
       ),
-
-      import_require_clause: $ => seq($.identifier, '=', 'require', '(', $.string, ')'),
 
       implements_clause: $ => seq(
         'implements',
@@ -508,9 +508,27 @@ module.exports = function defineGrammar(dialect) {
         choice($.pattern, $.this)
       ),
 
+      type_predicate: $ => seq(
+        choice($.identifier, $.this),
+        'is',
+        $._type
+      ),
+
+      type_predicate_annotation: $ => seq(
+        seq(':', $.type_predicate)
+      ),
+
       omitting_type_annotation: $ => seq('-?:', $._type),
       opting_type_annotation: $ => seq('?:', $._type),
       type_annotation: $ => seq(':', $._type),
+
+    _call_signature: $ => seq(
+        field('type_parameters', optional($.type_parameters)),
+        field('parameters', $.formal_parameters),
+        field('return_type', optional(
+          choice($.type_annotation, $.asserts, $.type_predicate_annotation)
+        ))
+      ),
 
       asserts: $ => seq(
         ':',
@@ -597,15 +615,7 @@ module.exports = function defineGrammar(dialect) {
         $.type_arguments
       )),
 
-      type_predicate: $ => seq(
-        choice($.identifier, $.this),
-        'is',
-        $._type
-      ),
-
-      type_predicate_annotation: $ => seq(
-        seq(':', $.type_predicate)
-      ),
+      
 
       type_query: $ => prec('unary_void', seq(
         'typeof',
@@ -698,14 +708,6 @@ module.exports = function defineGrammar(dialect) {
         field('name', $._property_name),
         optional('?'),
         field('type', optional($.type_annotation))
-      ),
-
-      _call_signature: $ => seq(
-        field('type_parameters', optional($.type_parameters)),
-        field('parameters', $.formal_parameters),
-        field('return_type', optional(
-          choice($.type_annotation, $.asserts, $.type_predicate_annotation)
-        ))
       ),
 
       type_parameters: $ => seq(

@@ -104,7 +104,7 @@ test "basic compilation and decompilation" {
     var sourceCodes = SourceCodes.init(test_allocator);
     defer sourceCodes.deinit();
     try sourceCodes.put("src/main.ek",
-      "`Hel\\nlo`"
+      "`Hel\\nlo` fake class"
     );
 
     const options = CompilerOptions{

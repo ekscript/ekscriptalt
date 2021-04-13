@@ -60,9 +60,7 @@ pub const Lexer = struct {
         tokens: *Tokens,
     ) Self {
         var lexer_arena = ArenaAllocator.init(allocator);
-        var keywords = token.initKeywordsMap(&lexer_arena.allocator) catch |err| {
-            unreachable;
-        };
+        var keywords = token.initKeywordsMap(&lexer_arena.allocator) catch unreachable;
         return .{
             .allocator = allocator,
             .lexer_arena = lexer_arena,
@@ -241,7 +239,7 @@ pub const Lexer = struct {
             if (currentChar == c) {
                 break;
             } else if (currentChar == '\\') {
-              _ = self.advance();
+                _ = self.advance();
             }
         }
 
@@ -283,7 +281,7 @@ pub const Lexer = struct {
             if (currentChar == '`') {
                 break;
             } else if (currentChar == '\\') {
-              _ = self.advance();
+                _ = self.advance();
             }
         }
 

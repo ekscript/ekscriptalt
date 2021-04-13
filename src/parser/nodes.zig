@@ -83,76 +83,118 @@ pub const ScopeContainer = struct {
 };
 
 pub const TopLevel = struct {
-    statements: Statements,
-    moduleName: []const u8,
+    statements: Stmts,
+    module_name: []const u8,
 };
 
-// ----------- Statements ----------------
-pub const Statements = std.ArrayList(Stmt);
+// ----------- Stmts ----------------
+pub const Stmts = std.ArrayList(Stmt);
 
 pub const Stmt = union(enum) {
-    exportStmt: *ExportStmt,
-    importStmt: *ImportStmt,
-    debuggerStmt: *DebuggerStmt,
-    exprStmt: *ExprStmt,
-    blockStmt: *BlockStmt,
-    ifStmt: *IfStmt,
-    switchStmt: *SwitchStmt,
-    forStmt: *ForStmt,
-    forInStmt: *ForInStmt,
-    whileStmt: *WhileStmt,
-    doStmt: *DoStmt,
-    tryStmt: *TryStmt,
-    withStmt: *WithStmt,
-    breakStmt: *BreakStmt,
-    continueStmt: *ContinueStmt,
-    returnStmt: *ReturnStmt,
-    throwStmt: *ThrowStmt,
-    EmptyStmt,
-    labeledStmt: *LabeledStmt,
+    decorator_stmt: *DecoratorStmt,
+    export_stmt: *ExportStmt,
+    import_stmt: *ImportStmt,
+    debugger_stmt: DebuggerStmt,
     declaration: *Declaration,
+    expr_stmt: *ExprStmt,
+    block_stmt: *BlockStmt,
+    if_stmt: *IfStmt,
+    switch_stmt: *SwitchStmt,
+    for_stmt: *ForStmt,
+    for_in_stmt: *ForInStmt,
+    while_stmt: *WhileStmt,
+    do_stmt: *DoStmt,
+    try_stmt: *TryStmt,
+    with_stmt: *WithStmt,
+    break_stmt: *BreakStmt,
+    continue_stmt: *ContinueStmt,
+    return_stmt: *ReturnStmt,
+    throw_stmt: *ThrowStmt,
+    empty_stmt,
+    labeled_stmt: *LabeledStmt,
 };
 
-// yo as Hello
-const ImportExportSpecifier = struct {
-    name: Token, // identifier
-    alias: ?Token, // alias (identifier), can be null
+/// '@' (Identifier | DecoratorMemberExpr | DecoratorCallExpr)
+pub const Decorator = union(enum) {
+    identifier: Identifier,
+    member_expr: DecoratorMemberExpr,
+    call_expr: DecoratorCallExpr,
 };
+
+/// DecoratorMemberExpr = (Identfier | DecoratorMemberExpr) '.' Identifier
+pub const DecoratorMemberExpr = struct {
+    object: union(enum) {
+        identifier: Identfiier,
+        member_expr: DecoratorMemberExpr,
+    },
+    property: Identifier,
+};
+
+/// DecoratorCallExpr = (Identfier | DecoratorMemberExpr) Arguments
+pub const DecoratorCallExpr = struct {
+    function: union(enum) {
+        identifier: Identfiier,
+        member_expr: DecoratorMemberExpr,
+    },
+    arguments: Arguments,
+};
+
+pub const Decorators = ArrayList(Decorator);
+
+pub const DecoratorStmt = struct {
+    decorators: Decorators,
+    stmt: Stmt,
+};
+
+// (Identifier | star) ('as' Identifier )?
+const ImportExportSpecifier = struct {
+    name: ?Identifier = null,
+    star: ?Token = null, // '*'
+    alias: ?Identifier = null, // alias
+};
+
+/// ImportExportSpecifier*
 const ImportExportSpecifiers = ArrayList(ImportExportSpecifier);
 
-const ExportStmt = union(enum) {
-    /// export * from 'hello.ts'; 'hello.ts' is the filename
-    from_only: Token, // fileName
-    /// export { foo, bar } from '';
-    export_from: struct {
-        export_specifier: ImportExportSpecifiers,
-        file: Token,
-    },
-    /// export { foo, bar }; 
-    export_only: struct {
-        export_specifier: ImportExportSpecifiers,
-    },
-    /// export <statement>; || /// export default expr; 
-    export_declaration: struct {
-        isDefault: bool,
-        stmt: ?Stmt, // for non-default export
-        expr: ?Expr, // for default exports
-    },
+/// ExportClause = '{' ImportExportSpecifiers  '}'
+const ExportClause = ImportExportSpecifiers;
+
+/// ImportClause = ImportExportSpecifier*
+const ImportClause = ImportExportSpecifiers;
+
+pub const ExportDefaultEnum = union(enum) {
+    expr: Expr,
+    func_sign: FuncSign,
 };
 
-const ImportStmt = union(enum) {
-    /// import default, { export1 } from 'module-name';  
-    /// - import_specifier is empty if no such import is present
-    /// - default is null if default is not present
-    from_only: struct {
-        default: ?Token,
-        import_specifier: ImportExportSpecifiers,
-        file: Token,
+/// End all cases with (';' | '\n')
+const ExportStmt = union(enum) {
+    /// 'export' '*' 'from' String
+    from_only: String,
+    /// 'export' ExportClause ('from' String)?
+    export_from: struct {
+        export_clause: ExportClause,
+        file: ?Token, // is
     },
+    /// 'export' Declaration 
+    export_declaration: Declaration,
 
-    /// import defaultExport, * as name from 'module-name'
-    /// - default is null if only `*` alias part is present  
-    defaultImportStar: struct { default: ?Token, restImportAlias: Token, file: Token },
+    /// 'export' 'default' Expr
+    export_default: ExportDefaultEnum,
+
+    /// export '=' Identifier 
+    export_equal: Identifier,
+
+    /// 'export' 'as' 'namespace' Identifier
+    export_namespace: Identifier,
+};
+
+/// 'import' (ImportExportSpecifier ',')* 'from' String;
+const ImportStmt = struct {
+    _type: bool = false,
+    require_name: ?Identifier = null,
+    import_specifier: ?ImportClause = null,
+    file: Token,
 };
 
 const DebuggerStmt = Token; // debugger token
@@ -161,26 +203,26 @@ const ExprStmt = struct {
     expr: Expr,
 };
 
-const BlockStmt = Statements;
+const BlockStmt = Stmts;
 
 const IfStmtsFiltered = union(enum) {
-    debuggerStmt: DebuggerStmt,
-    exprStmt: *ExprStmt,
-    blockStmt: BlockStmt,
-    ifStmt: *IfStmt,
-    switchStmt: *SwitchStmt,
-    forStmt: *ForStmt,
-    forInStmt: *ForInStmt,
-    whileStmt: *WhileStmt,
-    doStmt: *DoStmt,
-    tryStmt: *TryStmt,
-    withStmt: *WithStmt,
-    breakStmt: *BreakStmt,
-    continueStmt: *ContinueStmt,
-    returnStmt: *ReturnStmt,
-    throwStmt: *ThrowStmt,
-    EmptyStmt,
-    labeledStmt: *LabeledStmt,
+    debugger_stmt: DebuggerStmt,
+    expr_stmt: *ExprStmt,
+    block_stmt: BlockStmt,
+    if_stmt: *IfStmt,
+    switch_stmt: *SwitchStmt,
+    for_stmt: *ForStmt,
+    for_in_stmt: *ForInStmt,
+    while_stmt: *WhileStmt,
+    do_stmt: *DoStmt,
+    try_stmt: *TryStmt,
+    with_stmt: *WithStmt,
+    break_stmt: *BreakStmt,
+    continue_stmt: *ContinueStmt,
+    return_stmt: *ReturnStmt,
+    throw_stmt: *ThrowStmt,
+    empty_stmt,
+    labeled_stmt: *LabeledStmt,
 };
 
 /// 
@@ -190,162 +232,217 @@ const IfStmt = struct {
     alternative: ?IfStmtsFiltered,
 };
 
-/// Circular Reference Possible: seq_expr = (expr ',' (expr | seq_expr));
+/// SeqExpr = (expr ',' (expr | seq_expr));
 pub const SeqExpr = struct {
     left: Expr,
-    right: union(enum) {
-        seq_expr: *SeqExpr,
-        expr: Expr,
-    },
+    right: ?*SeqExpr = null,
+    variable_type: VariableType = VariableType._null,
 };
 
-pub const Expressions = union(enum) {
-    expr: Expr,
-    seq_expr: SeqExpr,
+pub const Expressions = SeqExpr;
+
+pub const SwitchArm = union(enum) {
+    switch_case: *SwitchCase,
+    switch_default: *SwitchDefault,
 };
 
-pub const SwitchArm = union(enum) { switch_case: *SwitchCase, switch_default: *SwitchDefault };
+pub const Stmts = ArrayList(Stmt);
 
-pub const SwitchDefault = Statements;
+pub const SwitchDefault = Stmts;
 
+/// 'case' Expressions ':' Stmt* Semicolon;
 pub const SwitchCase = struct {
-    value: *Expressions,
-    stmts: *Statements,
+    value: Expressions,
+    stmts: *Stmts,
 };
 
 pub const SwitchBody = ArrayList(SwitchArm);
 
-const SwitchStmt = union(enum) {
-    value: *ParenExpr,
+/// 'switch' ParenExpr
+const SwitchStmt = struct {
+    value: ParenExpr,
     body: *SwitchBody,
 };
 
+const ForInitializer = union(enum) {
+    lexical_decl: LexicalDecl,
+    expr_stmt: ExprStmt,
+    EmptyStmt,
+};
+
+const ForCondition = union(enum) {
+    expr_stmt: ExprStmt,
+    EmptyStmt,
+};
 const ForStmt = struct {
-    initalizer: union(enum) {
-        lexicalDecl: *LexicalDecl,
-        expr_stmt: *ExprStmt,
-        EmptyStmt,
+    initalizer: ForInitializer,
+    condition: ForCondition,
+    increment: ?*Expressions = null,
+    body: IfStmtsFiltered,
+};
+
+/// 'var' | 'let' | 'const'
+const varLetConst = Token;
+
+/// ForHeader ('var' | 'let' | 'const') 
+const ForHeader = struct {
+    varLetConst: Token,
+    left: union(enum) {
+        identifier: Token,
+        destructing_pattern: DestructuringPattern,
     },
-    condition: union(enum) {
-        expr_stmt: *ExprStmt,
-        EmptyStmt,
-    },
-    increment: ?*Expressions,
-    body: ?*IfStmtsFiltered,
+    isIn: bool, // 'of' or 'in'
+    right: SeqExpr,
 };
 
 const ForInStmt = struct {
     is_await: bool,
-    for_header: struct {
-        variable: union(enum) {
-            left: *LhsExpr,
-            header: *struct {
-                isConst: bool,
-                variable: union(enum) {
-                    identifier: Token,
-                    destructing_pattern: *DestructuringPattern,
-                },
-            },
-        },
-        isIn: bool, // 'of' or 'in'
-        right: *Expr,
-    },
+    for_header: ForHeader,
     body: ?*IfStmtsFiltered,
 };
 
 const WhileStmt = struct {
-    condition: *ParenExpr,
-    body: *IfStmtsFiltered,
+    condition: ParenExpr,
+    body: IfStmtsFiltered,
 };
 
 const DoStmt = struct {
-    body: *IfStmtsFiltered,
-    condition: *ParenExpr,
+    body: IfStmtsFiltered,
+    condition: ParenExpr,
 };
 
 const TryStmt = struct {
-    body: *BlockStmt,
-    handler: ?*CatchClause,
-    finalizer: ?*FinallyClause,
+    body: BlockStmt,
+    handler: ?CatchClause,
+    finalizer: ?inallyClause,
 };
 
 const WithStmt = struct {
-    object: *ParenExpr,
-    body: *Stmt,
+    object: ParenExpr,
+    body: Stmt,
 };
 
+/// BreakStmt = 'break' Identifier ';'
 const BreakStmt = ?Token; // label or null
 
 const ContinueStmt = ?Token; // label or null
 
-const ReturnStmt = ?*Expr; // void return or with Expr
+const ReturnStmt = ?SeqExpr; // void return or with Expr
 
 const ThrowStmt = Expressions; // an expression
 
 const LabeledStmt = struct {
     label: Token,
-    statement: *Stmt,
+    stmt: Stmt,
 };
 
 const Declaration = union(enum) {
     func_decl: *FuncDecl,
-    func_signature: *FuncSignature,
+    func_signature: *FuncSign,
     generator_func_decl: *GeneratorFuncDecl,
     class_decl: *ClassDecl,
     abstract_class_decl: *AbstractClassDecl,
-    type_alias_Decl: *TypeAliasDecl,
+    type_alias_decl: *TypeAliasDecl,
     enum_decl: *EnumDecl,
     interface_decl: *InterfaceDecl,
     lexical_decl: *LexicalDecl,
     variable_decl: *VarDecl,
+    module: *ModuleDecl,
+    internal_module: *InternalModule,
+    import_alias: *ImportAlias,
+    ambient_decl: *AmbientDecl,
+};
+
+const PropIdentifier = Identifier;
+
+/// AmbientDecl = 'declare' (
+///     Declaration |
+///     ('global' BlockStmt) |
+///     ('module' '.' PropIdentifier ':' Type (';' | '\n'))
+/// )
+const AmbientDecl = union(enum) {
+    declaration: Declaration, // declaration
+    stmt_block: BlockStmt, // global
+    module: struct { // module
+        prop_identifier: PropIdentifier,
+        _type: Type,
+    },
+};
+
+const String = Token;
+
+const ModuleName = union(enum) {
+    string: String,
+    identifier: Token,
+    nested_identifier: NestedIdentifier,
+};
+
+/// Module = 'module' (string | identifier | nested_identifier) 
+const Module = struct {
+    name: ModuleName,
+    body: BlockStmt,
+};
+
+/// InternalModule = 'namespace' (String | Identifier | NestedIdentifier) 
+const InternalModule = Module;
+
+/// ImportAlias = 'import' Identifier '=' (Identifier | NestedIdentifier)
+const ImportAlias = struct {
+    identifier: Identifier,
+    value: union(enum) {
+        identifier: Identifier,
+        nested_identifier: *NestedIdentifier,
+    },
 };
 
 const Func = struct {
     is_async: bool,
-    call_signature: *CallSignature,
+    is_generator: bool,
+    call_sign: *CallSign,
     body: *BlockStmt,
 };
 
+/// 'async'? 'function' '*'? Identifier CallSign BlockStmt
 const FuncDecl = struct {
     is_async: bool,
+    is_generator: bool,
     name: Token,
-    call_signature: *CallSignature,
-    body: BlockStmt,
-};
-
-const FuncSignature = struct {
-    is_async: bool,
-    name: Token,
-    call_signature: *CallSignature,
+    call_sign: *CallSign,
+    body: ?BlockStmt,
 };
 
 const GeneratorFunc = Func;
 
 const GeneratorFuncDecl = FuncDecl;
 
-const ClassHeritage = union(enum) {
+const ImplementsType = Type;
+
+/// ClassHeritage = ('extends' (ExtendsType ',')* )? ('implements' (Type ',')* )
+const ClassHeritage = struct {
     /// comma separated list of classes/abstractclass
-    extends: ?ArrayList(ExtendsClause),
+    extends: ?ArrayList(ExtendsType),
     /// comma separated list of interfaces (Tokens)
     implements: ?ArrayList(Type),
 };
 
+const TypeParams = ArrayList(TypeParam);
+
 const ClassDecl = struct {
     name: Token,
-    type_params: ?ArrayList(TypeParam),
+    type_params: ?TypeParams,
     /// heritage will give you inheritance and polymorphism
     class_heritage: ?ClassHeritage,
-    body: *ClassBody,
+    body: ClassBody,
 };
 
 const Class = struct {
     name: ?TypeIdentifier,
     type_params: ?ArrayList(TypeParam),
     class_heritage: ?ClassHeritage,
-    body: *ClassBody,
+    body: ClassBody,
 };
 
-const ExtendsClause = union(enum) {
+const ExtendsType = union(enum) {
     expr: *Expr,
     type_identifier: Token, // identifier
     nested_type_identifier: NestedTypeIdentifier,
@@ -380,16 +477,18 @@ const PropName = union(enum) {
     /// reserved identifiers as well
     identifier: Token,
     string: Token,
-    number: Token,
-    computed_prop_name: *Expr,
+    int: Token,
+    float: Token,
+    computed_prop_name: Expr,
 };
 
 const TypePredicate = struct {
     /// 'this' token or 'identifier' token
-    identifier: Token,
+    identifierOrThis: Token,
     _type: Type,
 };
 
+/// Asserts = ':' 'asserts' (TypePredicate | Identifier | this)
 const Asserts = union(enum) {
     type_predicate: TypePredicate,
     identifier: Token,
@@ -405,16 +504,6 @@ const TypeParam = struct {
     type_identifier: Token, // (identifier)
     constraint: ?Constraint, // (("extends" | ":") _type)
     default_type: ?Type, // ('=' _type)
-};
-
-const CallSignature = struct {
-    type_params: ArrayList(TypeParam),
-    params: ArrayList(FormalParam),
-    return_type: union(enum) {
-        type_annotation: *TypeAnnotation,
-        asserts: Asserts,
-        type_predicate_annotation: TypePredicate, // ':', type_predicate
-    },
 };
 
 const ParamName = struct {
@@ -454,13 +543,13 @@ const MethodDef = struct {
     get_set_star: GetSetStar,
     name: PropName,
     optional: bool, // '?' present
-    call_sign: CallSignature,
+    call_sign: CallSign,
     body: BlockStmt,
 };
 
 const LexicalDecl = struct {
     /// 'const' or 'let'
-    isConst: bool,
+    is_const: bool,
     variable_decls: ArrayList(VarDeclarator),
 };
 
@@ -513,16 +602,19 @@ const DestructuringPattern = union(enum) {
     arr_pattern: ArrayList(ArrayPattern), // [ hello ]
 };
 
+const IdentifierWithReserved = Identifier;
+
 const ArrowFunc = struct {
     is_async: bool,
     call_signature: union(enum) {
         identifier: Token,
-        call_signature: *CallSignature,
+        call_signature: *CallSign,
     },
     body: union(enum) {
         block: *BlockStmt,
         expr: *Expr,
     },
+    variable_type: VariableType,
 };
 
 const LhsExpr = union(enum) {
@@ -535,7 +627,7 @@ const LhsExpr = union(enum) {
 const ParenExpr = union(enum) {
     single_expr: struct {
         expr: Expr,
-        type_annotation: TypeAnnotation,
+        type_annotation: ?TypeAnnotation,
     },
     seq_expr: SeqExpr,
 };
@@ -590,23 +682,18 @@ const ArrayField = union(enum) {
     spread_element: SpreadElement, // ("..." expr)
 };
 
+// MemberExpr = Expr ('.' | '?.') Identifier
 const MemberExpr = struct {
-    object: union(enum) {
-        expr: *Expr,
-        primary_expr: *PrimaryExpr,
-    },
+    object: Expr,
     /// ('.' | '?.') - '?.' makes nullableAccess true
-    nullCheckAccess: bool,
-    property: Token, // identifier
+    null_check_access: bool,
+    property: ?Identifier, // If its just an identifier
 };
 
 /// SubscriptExpr = Expr | PrimaryExpr ("?.")? "[" Expr "]"
 const SubscriptExpr = struct {
-    object: union(enum) {
-        expr: Expr,
-        primary_expr: PrimaryExpr,
-    },
-    nullableAccess: bool, // ('?.')
+    object: Expr,
+    nullable_access: bool, // ('?.')
     index: Expressions,
 };
 
@@ -692,10 +779,10 @@ const TypeIdentifier = Token;
 /// NestedIdentifier = (identifier | nested_identifier) '.' identifier
 const NestedIdentifier = struct {
     left: union(enum) {
-        identifier: Token,
+        identifier: Identifier,
         nested_identifier: *NestedIdentifier,
     },
-    right: Token, // identifier
+    right: Identifier, // identifier
 };
 
 /// NestedTypeIdentifier = (identifier | NestedIdentifier) "." TypeIdentifier  
@@ -745,7 +832,7 @@ const PropSign = struct {
     _type: TypeAnnotation,
 };
 
-/// CallSign = TypeParams? FormalParams? (TypeAnnotation | Asserts | TypePredicateAnnotation)? 
+/// CallSign = TypeParams? FormalParams (TypeAnnotation | Asserts | TypePredicateAnnotation)? 
 const CallSign = struct {
     type_params: ?TypeParams,
     params: FormalParams,
@@ -915,14 +1002,10 @@ const ConstructorType = struct {
 const InferType = struct { type_identifier: TypeIdentifier };
 
 /// TypeParams = '<' (TypeParam ',')* ','? '>'
-const TypeParams = struct {
-    params: ArrayList(TypeParam),
-};
+const TypeParams = ArrayList(TypeParam);
 
 /// FormalParams = '(' (FormalParam ',')* ')'
-const FormalParams = struct {
-    params: ArrayList(FormalParam),
-};
+const FormalParams = ArrayList(FormalParam);
 
 /// TypePredicateAnnotation = ':' TypePredicate
 const TypePredicateAnnotation = struct {
@@ -957,20 +1040,16 @@ const Arguments = struct {
     args: ArrayList(Argument),
 };
 
+const VariableName = union(enum) {
+    identifier: Identifier,
+    destructing_pattern: DestructuringPattern,
+};
+
 /// VarDeclarator = ( ((Identifier | DestructuringPattern) TypeAnnotation? Initializer ) | (Identifier '!' TypeAnnotation) )  
-const VarDeclarator = union(enum) {
-    normal_decl: struct {
-        name: union(enum) {
-            identifier: Identifier,
-            destructing_pattern: DestructuringPattern,
-        },
-        type: TypeAnnotation,
-        Initializer: ?Initializer,
-    },
-    null_decl: struct {
-        name: Identifier,
-        type: TypeAnnotation,
-    },
+const VarDeclarator = struct {
+    name: VariableName,
+    _type: ?TypeAnnotation,
+    Initializer: ?Initializer,
 };
 
 /// Identifier = Token
@@ -979,12 +1058,14 @@ const Identifier = Token;
 /// ReservedIdentifier
 const ReservedIdentifier = Token;
 
+const IdentifierDestructuring = union(enum) {
+    identifier: Identifier,
+    destructing_pattern: DestructuringPattern,
+};
+
 /// CatchClause = ( 'catch' '(' (Identifier | DestructuringPattern)  ')' BlockStmt )
 const CatchClause = struct {
-    parameter: union(enum) {
-        identifier: Identifier,
-        destructing_pattern: DestructuringPattern,
-    },
+    parameter: IdentifierDestructuring,
     body: BlockStmt,
 };
 
@@ -1009,35 +1090,28 @@ const TypeAliasDecl = struct {
     value: Type,
 };
 
-/// EnumDecl = 'const'? 'enum' Identifier EnumBody
+/// EnumDecl = 'const'? 'enum' Identifier '{' EnumBody '}'
 const EnumDecl = struct {
     is_const: bool,
     name: Identifier,
     body: EnumBody,
 };
 
-/// EnumBody = '{' ((PropName | EnumAssign) ',')* '}'
-const EnumBody = struct {
-    prop_name: PropName,
-    enum_assign: EnumAssign,
+const EnumBody = ArrayList(EnumField);
+
+/// EnumBody = '{' ((PropName | EnumAssign?) ',')* '}'
+const EnumField = struct {
+    prop_name: Identifier,
+    initializer: ?Initializer,
 };
 
-/// EnumAssign = PropName Initializer
-const EnumAssign = struct {
-    prop_name: PropName,
-    initializer: Initializer,
-};
-
-
-/// InterfaceDecl = 'interface' TypeIdentifier TypeParams? ExtendsClause? ObjectType
+/// InterfaceDecl = 'interface' TypeIdentifier TypeParams? ExtendsClause* ObjectType
 const InterfaceDecl = struct {
     name: TypeIdentifier,
     type_params: ?TypeParams,
-    extends: ?ExtendsClause,    
+    extends: ?ArrayList(ExtendsType),
     body: ObjectType,
 };
 
 /// VarDecl = 'var' (VarDeclarator, ',') ';'
-const VarDecl = struct {
-    sub_decls: ArrayList(VarDeclarator)
-};
+const VarDecl = ArrayList(VarDeclarator);

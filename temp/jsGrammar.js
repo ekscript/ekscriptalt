@@ -236,6 +236,37 @@ module.exports = grammar({
         field("body", $.switch_body)
       ),
 
+    member_expression: ($) =>
+      prec(
+        "member",
+        seq(
+          field("object", choice($.expression, $.primary_expression)),
+          choice(".", "?."),
+          field("property", alias($.identifier, $.property_identifier))
+        )
+      ),
+
+    subscript_expression: ($) =>
+      prec.right(
+        "member",
+        seq(
+          field("object", choice($.expression, $.primary_expression)),
+          optional("?."),
+          "[",
+          field("index", $._expressions),
+          "]"
+        )
+      ),
+
+    _lhs_expression: ($) =>
+      choice(
+        $.member_expression,
+        $.subscript_expression,
+        $.identifier,
+        alias($._reserved_identifier, $.identifier),
+        $._destructuring_pattern
+      ),
+
     for_statement: ($) =>
       seq(
         "for",
@@ -343,10 +374,7 @@ module.exports = grammar({
         )
       ),
 
-    //
-    // Statement components
-    //
-
+    // -- Statement components --
     switch_body: ($) =>
       seq("{", repeat(choice($.switch_case, $.switch_default)), "}"),
 
@@ -703,36 +731,7 @@ module.exports = grammar({
 
     await_expression: ($) => seq("await", $.expression),
 
-    member_expression: ($) =>
-      prec(
-        "member",
-        seq(
-          field("object", choice($.expression, $.primary_expression)),
-          choice(".", "?."),
-          field("property", alias($.identifier, $.property_identifier))
-        )
-      ),
-
-    subscript_expression: ($) =>
-      prec.right(
-        "member",
-        seq(
-          field("object", choice($.expression, $.primary_expression)),
-          optional("?."),
-          "[",
-          field("index", $._expressions),
-          "]"
-        )
-      ),
-
-    _lhs_expression: ($) =>
-      choice(
-        $.member_expression,
-        $.subscript_expression,
-        $.identifier,
-        alias($._reserved_identifier, $.identifier),
-        $._destructuring_pattern
-      ),
+    
 
     assignment_expression: ($) =>
       prec.right(

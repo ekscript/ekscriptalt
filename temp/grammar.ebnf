@@ -1,0 +1,23 @@
+TopLevel = Statement* 
+Statement = DeclaratorStmt - starts with '@' 
+          | ExportStmt - starts with 'export'
+          | ImportStmt - starts with 'import'
+          | DebuggerStmt - starts with 'debugger'
+          | BlockStmt - starts with '{'
+          | IfStmt - starts with 'if'
+          | SwitchStmt - starts with 'switch'
+          | ForStmt - starts with 'for'
+          | ForInStmt - starts with 'for'
+          | WhileStmt - starts with 'while'
+          | DoStmt - starts with 'do'
+          | TryStmt - starts with 'try'
+          | WithStmt - starts with 'with'
+          | BreakStmt - starts with 'break'
+          | ContinueStmt - starts with 'continue'
+          | ReturnStmt - starts with 'return'
+          | ThrowStmt - starts with 'throw'
+          | emptyStmt - ends directly with ';'
+          | labeledStmt - starts with (identifier ':')
+          | ExprStmt -
+          | Declaration - starts with ('class' | )
+

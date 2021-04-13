@@ -166,6 +166,7 @@ pub const Token = struct {
 pub fn initKeywordsMap(allocator: *std.mem.Allocator) !*Keywords {
     var key = try allocator.create(Keywords);
     key.* = Keywords.init(allocator);
+
     try key.put("break", TokenType.Break); // 'break';
     try key.put("do", TokenType.Do); // 'do';
     try key.put("instanceof", TokenType.Instanceof); // 'instanceof';
